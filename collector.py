@@ -1,11 +1,16 @@
 import socket
 from decoder import Decoder
-import csv
-
+from pymongo import MongoClient
 
 class collector:
     HOST = None
     PORT = None
+
+    client = MongoClient('localhost', 27017)
+    db = client['NewDB']
+    col_ModeS_Long = db['ModeS_Long']
+    col_ModeS_Short = db['ModeS_Short']
+    col_Mode_AC = db['Mode_AC']
     
     def __init__(self, host, port):
         self.HOST = host
@@ -14,22 +19,16 @@ class collector:
         self.server_socket.connect((self.HOST, self.PORT))
 
 
-    def csv_file_handler(self, file_name, tuple_data):
+    def csv_file_handler(self, col, data):
         try:
-            if file_name and tuple_data:
-                file = open('./csv_files/'+file_name, 'a', newline = "\n")
-                file_writer = csv.writer(file, delimiter = ",")
-                file_writer.writerow(tuple_data)
-                file.close()
-
+            if data:
+                col.insert_one(data)
         except Exception as e:
             print("error from csv file handler function", e)
 
 
-    def get_tuple_data(self, data):
+    def get_data(self, data):
         length_of_data = len(data)
-        if data[:2] =="31":
-            print(True, len(data))
         if length_of_data >= 16:
             mode = data[0:2]
             timestamp = data[2:14]
@@ -39,23 +38,23 @@ class collector:
             else:
                 msg = ""
             if len(msg) in [4,14,28]:
-                return (mode, timestamp, receiver_level, msg)
+                return {"mode":mode, "timestamp":timestamp, "receiver_level":receiver_level, "msg":msg}
         return
 
 
     def store_by_mode(self, data):
         mode = data[:2]
-        tuple_data = self.get_tuple_data(data)
+        tuple_data = self.get_data(data)
 
         if tuple_data:
             if mode == "33":
-                self.csv_file_handler("ModeS_Long.csv", tuple_data)
+                self.csv_file_handler(self.col_ModeS_Long, tuple_data)
 
             elif mode == "32":
-                self.csv_file_handler("ModeS_Short.csv", tuple_data)
+                self.csv_file_handler(self.col_ModeS_Short, tuple_data)
 
             elif mode == "31":
-                self.csv_file_handler("Mode_AC.csv", tuple_data)
+                self.csv_file_handler(self.col_Mode_AC, tuple_data)
 
 
     def receiving_data(self):
